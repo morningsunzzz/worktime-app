@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}-frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    app: {{ .Chart.Name }}-frontend
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: {{ .Values.frontend.service.nodePort }}

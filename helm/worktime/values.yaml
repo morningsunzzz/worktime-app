@@ -1,0 +1,36 @@
+backend:
+  replicaCount: 1
+  image: <registry>/worktime-backend:latest
+  imagePullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    DATABASE_URL: postgresql://worktime:worktime123@<server-ip>:5432/worktime
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+frontend:
+  replicaCount: 1
+  image: <registry>/worktime-frontend:latest
+  imagePullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    nodePort: 30080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+ingress:
+  enabled: false
+  className: nginx
+  host: worktime.example.com
