@@ -30,6 +30,17 @@ class CrudTests(unittest.TestCase):
         )
         self.assertEqual(result, 1.5)
 
+    def test_build_update_statement_numbers_placeholders_after_values(self):
+        sql = crud.build_update_statement(
+            "work_records",
+            {"clock_out": object(), "total_hours": object(), "overtime_hours": object()},
+        )
+
+        self.assertIn("clock_out = $1", sql)
+        self.assertIn("total_hours = $2", sql)
+        self.assertIn("overtime_hours = $3", sql)
+        self.assertIn("WHERE id = $4", sql)
+
 
 if __name__ == "__main__":
     unittest.main()

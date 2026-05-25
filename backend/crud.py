@@ -30,6 +30,14 @@ def calc_overtime_hours(clock_in: datetime, total_hours: float, standard_hours: 
     pre_overtime = pre_hours if clock_in.hour < 9 else 0.0
     return max(0.0, total_hours - standard_hours + pre_overtime)
 
+
+def build_update_statement(table: str, updates: dict) -> str:
+    if not updates:
+        raise ValueError("updates must not be empty")
+    sets = ", ".join([f"{key} = ${index}" for index, key in enumerate(updates.keys(), start=1)])
+    return f"UPDATE {table} SET {sets}, updated_at = NOW() WHERE id = ${len(updates) + 1}"
+
+
 async def get_today_record(pool: asyncpg.Pool, today: date | str) -> Optional[asyncpg.Record]:
     async with pool.acquire() as conn:
         return await conn.fetchrow(
@@ -64,10 +72,9 @@ async def update_record(pool: asyncpg.Pool, id: str, updates: dict):
         updates = updates.copy()
         if "date" in updates:
             updates["date"] = db_date(updates["date"])
-        sets = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(updates.keys())])
         vals = list(updates.values())
         await conn.execute(
-            f"UPDATE work_records SET {sets}, updated_at = NOW() WHERE id = ${len(vals)+1}",
+            build_update_statement("work_records", updates),
             *vals, id
         )
 
