@@ -1,6 +1,5 @@
 from typing import Optional
 from datetime import date, datetime
-import math
 import asyncpg
 
 
@@ -25,6 +24,9 @@ def calc_total_hours(work_minutes: int) -> float:
     return round_to_half(work_minutes)
 
 def calc_overtime_hours(clock_in: datetime, total_hours: float, standard_hours: float, pre_hours: float) -> float:
+    total_hours = float(total_hours)
+    standard_hours = float(standard_hours)
+    pre_hours = float(pre_hours)
     pre_overtime = pre_hours if clock_in.hour < 9 else 0.0
     return max(0.0, total_hours - standard_hours + pre_overtime)
 
@@ -78,7 +80,11 @@ async def get_settings(pool: asyncpg.Pool) -> dict:
         row = await conn.fetchrow("SELECT * FROM settings WHERE id = 1")
         if not row:
             return {"standard_hours": 8.0, "lunch_break_minutes": 60, "pre_hours": 1.0}
-        return dict(row)
+        return {
+            "standard_hours": float(row["standard_hours"]),
+            "lunch_break_minutes": int(row["lunch_break_minutes"]),
+            "pre_hours": float(row["pre_hours"]),
+        }
 
 async def save_settings(pool: asyncpg.Pool, s: dict):
     async with pool.acquire() as conn:
