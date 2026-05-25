@@ -44,10 +44,12 @@ async def get_today():
 @router.post("/clock-in", response_model=WorkRecordOut)
 async def clock_in():
     pool = await get_pool()
-    today = date.today().isoformat()
+    today = date.today()
+    existing = await crud.get_today_record(pool, today)
+    if existing:
+        return _record_from_row(existing)
     clock_in_time = datetime.now()
     settings = await crud.get_settings(pool)
-    m = 0
     th = 0.0
     oh = crud.calc_overtime_hours(clock_in_time, th, settings["standard_hours"], settings["pre_hours"])
     record_id = await crud.create_record(pool, {

@@ -1,11 +1,17 @@
 from typing import Optional
-from datetime import datetime
+from datetime import date, datetime
 import math
 import asyncpg
 
 
 def month_prefix(year: int, month: int) -> str:
     return f"{year}-{month:02d}"
+
+
+def db_date(value: date | str) -> date:
+    if isinstance(value, date):
+        return value
+    return date.fromisoformat(value)
 
 
 def round_to_half(minutes: int) -> float:
@@ -22,10 +28,10 @@ def calc_overtime_hours(clock_in: datetime, total_hours: float, standard_hours: 
     pre_overtime = pre_hours if clock_in.hour < 9 else 0.0
     return max(0.0, total_hours - standard_hours + pre_overtime)
 
-async def get_today_record(pool: asyncpg.Pool, today: str) -> Optional[asyncpg.Record]:
+async def get_today_record(pool: asyncpg.Pool, today: date | str) -> Optional[asyncpg.Record]:
     async with pool.acquire() as conn:
         return await conn.fetchrow(
-            "SELECT * FROM work_records WHERE date = $1", today
+            "SELECT * FROM work_records WHERE date = $1", db_date(today)
         )
 
 async def get_records_by_month(pool: asyncpg.Pool, year: int, month: int):
@@ -47,12 +53,15 @@ async def create_record(pool: asyncpg.Pool, record: dict) -> str:
         return await conn.fetchval(
             """INSERT INTO work_records (date, clock_in, clock_out, total_hours, overtime_hours, note)
                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-            record["date"], record["clock_in"], record.get("clock_out"),
+            db_date(record["date"]), record["clock_in"], record.get("clock_out"),
             record.get("total_hours"), record.get("overtime_hours"), record.get("note")
         )
 
 async def update_record(pool: asyncpg.Pool, id: str, updates: dict):
     async with pool.acquire() as conn:
+        updates = updates.copy()
+        if "date" in updates:
+            updates["date"] = db_date(updates["date"])
         sets = ", ".join([f"{k} = ${i+2}" for i, k in enumerate(updates.keys())])
         vals = list(updates.values())
         await conn.execute(
