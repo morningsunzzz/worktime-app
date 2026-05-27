@@ -23,7 +23,6 @@ __pycache__/
 *.key
 .codex_deploy_key
 .codex_deploy_key.*
-!.codex_deploy_key.pub
 
 # Logs
 *.log
