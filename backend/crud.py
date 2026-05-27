@@ -1,6 +1,20 @@
 from typing import Optional
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
+from uuid import UUID
 import asyncpg
+
+CHINA_TZ = timezone(timedelta(hours=8))
+
+
+def local_now(clock=None) -> datetime:
+    now = clock() if clock else datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return now.astimezone(CHINA_TZ).replace(tzinfo=None)
+
+
+def local_today(clock=None) -> date:
+    return local_now(clock).date()
 
 
 def month_prefix(year: int, month: int) -> str:
@@ -11,6 +25,22 @@ def db_date(value: date | str) -> date:
     if isinstance(value, date):
         return value
     return date.fromisoformat(value)
+
+
+def db_datetime(value: datetime | str | None) -> datetime | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(CHINA_TZ).replace(tzinfo=None)
+
+
+def db_uuid(value: UUID | str) -> UUID:
+    if isinstance(value, UUID):
+        return value
+    return UUID(value)
 
 
 def round_to_half(minutes: int) -> float:
@@ -26,9 +56,11 @@ def calc_total_hours(work_minutes: int) -> float:
 def calc_overtime_hours(clock_in: datetime, total_hours: float, standard_hours: float, pre_hours: float) -> float:
     total_hours = float(total_hours)
     standard_hours = float(standard_hours)
-    pre_hours = float(pre_hours)
-    pre_overtime = pre_hours if clock_in.hour < 9 else 0.0
-    return max(0.0, total_hours - standard_hours + pre_overtime)
+    return max(0.0, total_hours - standard_hours)
+
+
+def default_clock_in_time(current: datetime) -> datetime:
+    return current.replace(hour=8, minute=0, second=0, microsecond=0)
 
 
 def build_update_statement(table: str, updates: dict) -> str:
@@ -63,7 +95,7 @@ async def create_record(pool: asyncpg.Pool, record: dict) -> str:
         return await conn.fetchval(
             """INSERT INTO work_records (date, clock_in, clock_out, total_hours, overtime_hours, note)
                VALUES ($1, $2, $3, $4, $5, $6) RETURNING id""",
-            db_date(record["date"]), record["clock_in"], record.get("clock_out"),
+            db_date(record["date"]), db_datetime(record["clock_in"]), db_datetime(record.get("clock_out")),
             record.get("total_hours"), record.get("overtime_hours"), record.get("note")
         )
 
@@ -72,15 +104,19 @@ async def update_record(pool: asyncpg.Pool, id: str, updates: dict):
         updates = updates.copy()
         if "date" in updates:
             updates["date"] = db_date(updates["date"])
+        if "clock_in" in updates:
+            updates["clock_in"] = db_datetime(updates["clock_in"])
+        if "clock_out" in updates:
+            updates["clock_out"] = db_datetime(updates["clock_out"])
         vals = list(updates.values())
         await conn.execute(
             build_update_statement("work_records", updates),
-            *vals, id
+            *vals, db_uuid(id)
         )
 
 async def delete_record(pool: asyncpg.Pool, id: str):
     async with pool.acquire() as conn:
-        await conn.execute("DELETE FROM work_records WHERE id = $1", id)
+        await conn.execute("DELETE FROM work_records WHERE id = $1", db_uuid(id))
 
 async def get_settings(pool: asyncpg.Pool) -> dict:
     async with pool.acquire() as conn:
