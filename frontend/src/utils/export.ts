@@ -6,10 +6,12 @@ function escapeCsv(v: string): string {
 }
 
 export function exportCSV(records: WorkRecord[]): void {
-  const header = '日期,上班时间,下班时间,工时,加班,备注'
-  const rows = records.map((r) =>
-    [
+  const header = '日期,星期,上班时间,下班时间,工时,加班,备注'
+  const rows = records.map((r) => {
+    const dayOfWeek = new Date(r.date).toLocaleDateString('zh-CN', { weekday: 'short' })
+    return [
       r.date,
+      dayOfWeek,
       formatTime(r.clock_in),
       formatTime(r.clock_out),
       formatHours(r.total_hours),

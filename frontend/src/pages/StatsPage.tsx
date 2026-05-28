@@ -8,7 +8,7 @@ export default function StatsPage() {
   const now = dayjs()
   const [year, setYear] = useState(now.year())
   const [month, setMonth] = useState(now.month() + 1)
-  const { monthly, dailyHours } = useStats(year, month)
+  const { monthly, dailyHours, saturday } = useStats(year, month)
 
   const prevMonth = () => {
     if (month === 1) { setYear(year - 1); setMonth(12) }
@@ -35,6 +35,16 @@ export default function StatsPage() {
           <StatCard label="总工时" value={`${monthly.total_hours}h`} color="text-green-600" />
           <StatCard label="加班" value={`${monthly.overtime_hours}h`} color="text-orange-500" />
         </div>
+
+        {/* 周六出勤 */}
+        {saturday.count > 0 && (
+          <div className="bg-gray-50 rounded-xl p-3 text-center">
+            <div className="text-xs text-gray-400">周六出勤</div>
+            <div className="text-lg font-bold mt-1 text-purple-600">
+              {saturday.count}次 · {saturday.hours}h
+            </div>
+          </div>
+        )}
 
         {/* 近30天工时图表 */}
         <div>
