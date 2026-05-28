@@ -46,14 +46,21 @@ async def init_db():
                 id INTEGER PRIMARY KEY DEFAULT 1,
                 standard_hours DECIMAL(4,2) DEFAULT 8,
                 lunch_break_minutes INTEGER DEFAULT 60,
-                pre_hours DECIMAL(4,2) DEFAULT 1
+                pre_hours DECIMAL(4,2) DEFAULT 1,
+                overtime_start VARCHAR(5) DEFAULT '18:00'
             )
             """
         )
         await conn.execute(
             """
-            INSERT INTO settings (id, standard_hours, lunch_break_minutes, pre_hours)
-            VALUES (1, 8, 60, 1)
+            INSERT INTO settings (id, standard_hours, lunch_break_minutes, pre_hours, overtime_start)
+            VALUES (1, 8, 60, 1, '18:00')
             ON CONFLICT (id) DO NOTHING
+            """
+        )
+        # Migration: add overtime_start column to existing databases
+        await conn.execute(
+            """
+            ALTER TABLE settings ADD COLUMN IF NOT EXISTS overtime_start VARCHAR(5) DEFAULT '18:00'
             """
         )

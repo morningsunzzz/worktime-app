@@ -4,7 +4,7 @@ import dayjs from 'dayjs'
 
 export function useTodayRecord() {
   const [record, setRecord] = useState<WorkRecord | null>(null)
-  const [settings, setSettings] = useState<Settings>({ standard_hours: 8, lunch_break_minutes: 60, pre_hours: 1 })
+  const [settings, setSettings] = useState<Settings>({ standard_hours: 8, lunch_break_minutes: 60, pre_hours: 1, overtime_start: '18:00' })
   const [elapsed, setElapsed] = useState(0)
 
   const refresh = useCallback(async () => {

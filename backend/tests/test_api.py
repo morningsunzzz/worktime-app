@@ -23,7 +23,7 @@ def _row(**kw):
 
 
 def _settings(**kw):
-    defaults = {"standard_hours": 8.0, "lunch_break_minutes": 60, "pre_hours": 1.0}
+    defaults = {"standard_hours": 8.0, "lunch_break_minutes": 60, "pre_hours": 1.0, "overtime_start": "18:00"}
     defaults.update(kw)
     return defaults
 
@@ -70,7 +70,8 @@ class TestSettings:
             json={"standard_hours": 9.0, "lunch_break_minutes": 45, "pre_hours": 1.5},
         )
         assert res.status_code == 200
-        assert res.json() == {"ok": True}
+        assert res.json()["ok"] is True
+        assert "updated" in res.json()
 
     async def test_save_settings_accepts_zero_lunch(self, client):
         res = await client.put(
@@ -78,6 +79,7 @@ class TestSettings:
             json={"standard_hours": 8.0, "lunch_break_minutes": 0, "pre_hours": 1.0},
         )
         assert res.status_code == 200
+        assert res.json()["ok"] is True
 
     async def test_save_settings_with_defaults_for_missing(self, client):
         """所有字段都有默认值，缺失字段使用默认值，返回 200"""
@@ -329,7 +331,7 @@ class TestEditRecord:
         client._mock_pool.fetchrow.return_value = _row(
             id=VALID_UUID, date="2026-05-26",
             clock_in=clock_in, clock_out=clock_out,
-            total_hours=11.0, overtime_hours=3.0,
+            total_hours=11.0, overtime_hours=2.0,
         )
 
         res = await client.put(

@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import dayjs from 'dayjs'
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useRecords, updateRecord } from '../hooks/useRecords'
 import RecordCard from '../components/RecordCard'
-import { api, type WorkRecord } from '../api/client'
+import { api, type WorkRecord, type Settings } from '../api/client'
 import { calcWorkMinutes, calcTotalHours, calcOvertimeHours } from '../utils/time'
 
 export default function HistoryPage() {
@@ -13,6 +13,11 @@ export default function HistoryPage() {
   const [editing, setEditing] = useState<WorkRecord | null>(null)
   const [adding, setAdding] = useState(false)
   const [addDate, setAddDate] = useState(dayjs().format('YYYY-MM-DD'))
+  const [settings, setSettings] = useState<Settings>({ standard_hours: 8, lunch_break_minutes: 60, pre_hours: 1, overtime_start: '18:00' })
+
+  useEffect(() => {
+    api.getSettings().then((s) => setSettings(s as Settings))
+  }, [])
   const [addClockIn, setAddClockIn] = useState('08:00')
   const [addClockOut, setAddClockOut] = useState('18:00')
   const { records, reload } = useRecords(year, month)
@@ -109,9 +114,9 @@ export default function HistoryPage() {
                   onChange={(e) => {
                     const t = e.target.value
                     const newIso = dayjs(`${editing.date}T${t}:00`).toISOString()
-                    const workMin = calcWorkMinutes(editing.clock_in, newIso, 0)
+                    const workMin = calcWorkMinutes(editing.clock_in, newIso, settings.lunch_break_minutes)
                     const totalH = calcTotalHours(workMin)
-                    const overtimeH = calcOvertimeHours(editing.clock_in, totalH, 8, 1)
+                    const overtimeH = calcOvertimeHours(editing.clock_in, newIso, settings.pre_hours, settings.overtime_start)
                     setEditing({
                       ...editing,
                       clock_out: newIso,

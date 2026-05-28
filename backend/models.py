@@ -25,6 +25,7 @@ class SettingsIn(BaseModel):
     standard_hours: float = 8.0
     lunch_break_minutes: int = 60
     pre_hours: float = 1.0
+    overtime_start: str = "18:00"
 
 class StatsOut(BaseModel):
     work_days: int

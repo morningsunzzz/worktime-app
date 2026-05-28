@@ -53,10 +53,26 @@ def calc_work_minutes(clock_in: datetime, clock_out: datetime, lunch_minutes: in
 def calc_total_hours(work_minutes: int) -> float:
     return round_to_half(work_minutes)
 
-def calc_overtime_hours(clock_in: datetime, total_hours: float, standard_hours: float, pre_hours: float) -> float:
-    total_hours = float(total_hours)
-    standard_hours = float(standard_hours)
-    return max(0.0, total_hours - standard_hours)
+def calc_overtime_hours(
+    clock_in: datetime,
+    clock_out: datetime | None,
+    pre_hours: float,
+    overtime_start: str,
+) -> float:
+    """Calculate overtime: morning bonus (before 9am) + evening overtime (after overtime_start)."""
+    if clock_out is None:
+        return 0.0
+
+    # Morning bonus: clocked in before 9am
+    morning_bonus = float(pre_hours) if clock_in.hour < 9 else 0.0
+
+    # Evening overtime: time worked after overtime_start (anchored to clock_in date)
+    ost_hour, ost_minute = map(int, overtime_start.split(":"))
+    ost_dt = clock_in.replace(hour=ost_hour, minute=ost_minute, second=0, microsecond=0)
+    evening_minutes = int((clock_out - ost_dt).total_seconds() / 60)
+    evening_overtime = max(0.0, round_to_half(max(0, evening_minutes)))
+
+    return morning_bonus + evening_overtime
 
 
 def default_clock_in_time(current: datetime) -> datetime:
@@ -122,21 +138,44 @@ async def get_settings(pool: asyncpg.Pool) -> dict:
     async with pool.acquire() as conn:
         row = await conn.fetchrow("SELECT * FROM settings WHERE id = 1")
         if not row:
-            return {"standard_hours": 8.0, "lunch_break_minutes": 60, "pre_hours": 1.0}
+            return {"standard_hours": 8.0, "lunch_break_minutes": 60, "pre_hours": 1.0, "overtime_start": "18:00"}
         return {
             "standard_hours": float(row["standard_hours"]),
             "lunch_break_minutes": int(row["lunch_break_minutes"]),
             "pre_hours": float(row["pre_hours"]),
+            "overtime_start": str(row["overtime_start"]),
         }
 
 async def save_settings(pool: asyncpg.Pool, s: dict):
     async with pool.acquire() as conn:
         await conn.execute(
-            """INSERT INTO settings (id, standard_hours, lunch_break_minutes, pre_hours)
-               VALUES (1, $1, $2, $3)
-               ON CONFLICT (id) DO UPDATE SET standard_hours = $1, lunch_break_minutes = $2, pre_hours = $3""",
-            s["standard_hours"], s["lunch_break_minutes"], s["pre_hours"]
+            """INSERT INTO settings (id, standard_hours, lunch_break_minutes, pre_hours, overtime_start)
+               VALUES (1, $1, $2, $3, $4)
+               ON CONFLICT (id) DO UPDATE SET
+               standard_hours = $1, lunch_break_minutes = $2, pre_hours = $3, overtime_start = $4""",
+            s["standard_hours"], s["lunch_break_minutes"], s["pre_hours"], s["overtime_start"]
         )
+
+async def recalculate_all_overtime(pool: asyncpg.Pool) -> int:
+    """Recalculate overtime_hours for all completed records using current settings."""
+    settings = await get_settings(pool)
+    async with pool.acquire() as conn:
+        records = await conn.fetch(
+            "SELECT * FROM work_records WHERE clock_out IS NOT NULL"
+        )
+        count = 0
+        for r in records:
+            oh = calc_overtime_hours(
+                r["clock_in"], r["clock_out"],
+                settings["pre_hours"], settings["overtime_start"],
+            )
+            await conn.execute(
+                "UPDATE work_records SET overtime_hours = $1, updated_at = NOW() WHERE id = $2",
+                oh, r["id"],
+            )
+            count += 1
+        return count
+
 
 async def get_stats(pool: asyncpg.Pool, year: int, month: int, settings: dict):
     async with pool.acquire() as conn:
@@ -153,7 +192,7 @@ async def get_stats(pool: asyncpg.Pool, year: int, month: int, settings: dict):
             clock_out: datetime = r["clock_out"]
             m = calc_work_minutes(clock_in, clock_out, settings["lunch_break_minutes"])
             th = calc_total_hours(m)
-            oh = calc_overtime_hours(clock_in, th, settings["standard_hours"], settings["pre_hours"])
+            oh = calc_overtime_hours(clock_in, clock_out, settings["pre_hours"], settings["overtime_start"])
             total_h += th
             overtime_h += oh
         return {"work_days": work_days, "total_hours": round(total_h, 2), "overtime_hours": round(overtime_h, 2)}

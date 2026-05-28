@@ -105,56 +105,57 @@ describe('calcTotalHours', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════
-// calcOvertimeHours — max(0, totalHours - standardHours + preOvertime)
-// 重要：前端保留了 pre_hours 逻辑（9点前上班自动计入加班）
+// calcOvertimeHours — 早班加成 + 晚间加班（overtime_start之后）
 // ═══════════════════════════════════════════════════════════════════
 
 describe('calcOvertimeHours', () => {
-  it('no overtime: 8h work, 8h standard', () => {
-    expect(calcOvertimeHours('2026-05-26T09:00:00', 8.0, 8.0, 1.0)).toBe(0.0)
+  it('no clockOut → 0 overtime', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', null, 1, '18:00')).toBe(0)
   })
 
-  it('overtime 1h: 9h work, 8h standard, 9am arrival', () => {
-    expect(calcOvertimeHours('2026-05-26T09:00:00', 9.0, 8.0, 1.0)).toBe(1.0)
+  it('standard day no overtime: 9:00-18:00, ot_start=18:00', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', '2026-05-26T18:00:00', 1, '18:00')).toBe(0)
   })
 
-  it('overtime 2h: 10h work, 8h standard', () => {
-    expect(calcOvertimeHours('2026-05-26T09:00:00', 10.0, 8.0, 1.0)).toBe(2.0)
+  it('morning bonus only: 8:00-17:00, ot_start=18:00 → 1h', () => {
+    expect(calcOvertimeHours('2026-05-26T08:00:00', '2026-05-26T17:00:00', 1, '18:00')).toBe(1)
   })
 
-  it('pre-overtime bonus: arrive before 9am, 8h work', () => {
-    // 8:00 上班 + 8h 工作 = 0h normal OT + 1h pre OT = 1h
-    expect(calcOvertimeHours('2026-05-26T08:00:00', 8.0, 8.0, 1.0)).toBe(1.0)
+  it('evening overtime only: 9:00-20:00, ot_start=18:00 → 2h', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', '2026-05-26T20:00:00', 1, '18:00')).toBe(2)
   })
 
-  it('pre-overtime + real overtime: 8am arrival, 9h work', () => {
-    // (9h - 8h) + 1h pre = 2h OT
-    expect(calcOvertimeHours('2026-05-26T08:00:00', 9.0, 8.0, 1.0)).toBe(2.0)
+  it('morning + evening: 8:00-22:00, ot_start=18:00 → 5h', () => {
+    expect(calcOvertimeHours('2026-05-26T08:00:00', '2026-05-26T22:00:00', 1, '18:00')).toBe(5)
   })
 
-  it('exactly 9am: no pre-overtime bonus', () => {
-    // hour === 9, NOT < 9 → no bonus
-    expect(calcOvertimeHours('2026-05-26T09:00:00', 8.0, 8.0, 1.0)).toBe(0.0)
+  it('change overtime_start to 19:00 → 9:00-20:00 = 1h', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', '2026-05-26T20:00:00', 1, '19:00')).toBe(1)
   })
 
-  it('8:59am: gets pre-overtime bonus', () => {
-    expect(calcOvertimeHours('2026-05-26T08:59:00', 8.0, 8.0, 1.0)).toBe(1.0)
+  it('change overtime_start to 18:30 → 9:00-19:00 = 0.5h', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', '2026-05-26T19:00:00', 1, '18:30')).toBe(0.5)
   })
 
-  it('afternoon arrival: no pre-overtime', () => {
-    expect(calcOvertimeHours('2026-05-26T14:00:00', 8.0, 8.0, 1.0)).toBe(0.0)
+  it('exactly 9:00 → no morning bonus', () => {
+    expect(calcOvertimeHours('2026-05-26T09:00:00', '2026-05-26T22:00:00', 1, '18:00')).toBe(4)
   })
 
-  it('negative total hours → 0 overtime', () => {
-    expect(calcOvertimeHours('2026-05-26T08:00:00', 0.0, 8.0, 1.0)).toBe(0.0)
+  it('8:59 → gets morning bonus', () => {
+    expect(calcOvertimeHours('2026-05-26T08:59:00', '2026-05-26T22:00:00', 1, '18:00')).toBe(5)
   })
 
-  it('non-standard hours: 6h standard, 8h work → 2h + pre bonus', () => {
-    expect(calcOvertimeHours('2026-05-26T08:00:00', 8.0, 6.0, 1.0)).toBe(3.0)
+  it('pre_hours=0 → no morning bonus', () => {
+    expect(calcOvertimeHours('2026-05-26T08:00:00', '2026-05-26T20:00:00', 0, '18:00')).toBe(2)
   })
 
-  it('pre_hours=0: early arrival gives no bonus', () => {
-    expect(calcOvertimeHours('2026-05-26T08:00:00', 9.0, 8.0, 0.0)).toBe(1.0)
+  it('cross-midnight: ot_start anchored to clock_in date', () => {
+    expect(calcOvertimeHours(
+      '2026-05-26T09:00:00',
+      '2026-05-27T02:00:00',
+      1,
+      '18:00'
+    )).toBe(8)
   })
 })
 

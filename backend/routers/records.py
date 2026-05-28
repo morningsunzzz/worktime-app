@@ -51,7 +51,7 @@ async def clock_in():
     clock_in_time = crud.default_clock_in_time(crud.local_now())
     settings = await crud.get_settings(pool)
     th = 0.0
-    oh = crud.calc_overtime_hours(clock_in_time, th, settings["standard_hours"], settings["pre_hours"])
+    oh = crud.calc_overtime_hours(clock_in_time, None, settings["pre_hours"], settings["overtime_start"])
     record_id = await crud.create_record(pool, {
         "date": today, "clock_in": clock_in_time,
         "total_hours": th, "overtime_hours": oh
@@ -73,7 +73,7 @@ async def clock_out():
     clock_in_dt: datetime = existing["clock_in"]
     work_min = crud.calc_work_minutes(clock_in_dt, clock_out_time, settings["lunch_break_minutes"])
     total_h = crud.calc_total_hours(work_min)
-    overtime = crud.calc_overtime_hours(clock_in_dt, total_h, settings["standard_hours"], settings["pre_hours"])
+    overtime = crud.calc_overtime_hours(clock_in_dt, clock_out_time, settings["pre_hours"], settings["overtime_start"])
     await crud.update_record(pool, str(existing["id"]), {
         "clock_out": clock_out_time, "total_hours": total_h, "overtime_hours": overtime
     })
@@ -89,7 +89,7 @@ async def add_record(r: WorkRecordIn):
         clock_out_dt = crud.db_datetime(r.clock_out)
         work_min = crud.calc_work_minutes(clock_in_dt, clock_out_dt, settings["lunch_break_minutes"])
         total_h = crud.calc_total_hours(work_min)
-        overtime = crud.calc_overtime_hours(clock_in_dt, total_h, settings["standard_hours"], settings["pre_hours"])
+        overtime = crud.calc_overtime_hours(clock_in_dt, clock_out_dt, settings["pre_hours"], settings["overtime_start"])
     else:
         total_h = None
         overtime = None
@@ -110,7 +110,7 @@ async def edit_record(id: str, r: WorkRecordIn):
         clock_out_dt = crud.db_datetime(r.clock_out)
         work_min = crud.calc_work_minutes(clock_in_dt, clock_out_dt, settings["lunch_break_minutes"])
         total_h = crud.calc_total_hours(work_min)
-        overtime = crud.calc_overtime_hours(clock_in_dt, total_h, settings["standard_hours"], settings["pre_hours"])
+        overtime = crud.calc_overtime_hours(clock_in_dt, clock_out_dt, settings["pre_hours"], settings["overtime_start"])
     else:
         clock_out_dt = None
         total_h = None

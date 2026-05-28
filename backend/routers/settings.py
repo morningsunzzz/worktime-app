@@ -15,4 +15,12 @@ async def get_settings():
 async def save_settings(s: SettingsIn):
     pool = await get_pool()
     await crud.save_settings(pool, s.model_dump())
-    return {"ok": True}
+    count = await crud.recalculate_all_overtime(pool)
+    return {"ok": True, "updated": count}
+
+
+@router.post("/recalculate")
+async def recalculate_overtime():
+    pool = await get_pool()
+    count = await crud.recalculate_all_overtime(pool)
+    return {"ok": True, "updated": count}

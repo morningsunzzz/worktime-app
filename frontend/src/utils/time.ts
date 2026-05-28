@@ -24,20 +24,32 @@ export function calcTotalHours(workMinutes: number): number {
 }
 
 /**
+ * Calculate overtime: morning bonus (before 9am) + evening overtime (after overtime_start).
  * @param clockIn - ISO datetime of clock-in
- * @param totalHours - total worked hours (after lunch deduction)
- * @param standardHours - standard hours (default 8)
- * @param preHours - hours before 9am that auto-count as overtime
+ * @param clockOut - ISO datetime of clock-out (null if still working)
+ * @param preHours - overtime bonus hours for arriving before 9am (default 1)
+ * @param overtimeStart - time string like "18:00", "18:30", "19:00"
  */
 export function calcOvertimeHours(
   clockIn: string,
-  totalHours: number,
-  standardHours: number,
+  clockOut: string | null,
   preHours: number,
+  overtimeStart: string,
 ): number {
-  const hour = dayjs(clockIn).hour()
-  const preOvertime = hour < 9 ? preHours : 0
-  return Math.max(0, totalHours - standardHours + preOvertime)
+  if (!clockOut) return 0
+
+  const inTime = dayjs(clockIn)
+
+  // Morning bonus: clocked in before 9am
+  const morningBonus = inTime.hour() < 9 ? preHours : 0
+
+  // Evening overtime: time after overtime_start (anchored to clock_in date)
+  const [ostH, ostM] = overtimeStart.split(':').map(Number)
+  const ostTime = inTime.hour(ostH).minute(ostM).second(0).millisecond(0)
+  const diffMinutes = dayjs(clockOut).diff(ostTime, 'minute')
+  const eveningOvertime = Math.max(0, roundToHalfHour(diffMinutes))
+
+  return morningBonus + eveningOvertime
 }
 
 export function formatTime(iso: string | null): string {

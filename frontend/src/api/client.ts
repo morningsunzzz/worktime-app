@@ -25,6 +25,7 @@ export interface Settings {
   standard_hours: number
   lunch_break_minutes: number
   pre_hours: number
+  overtime_start: string
 }
 
 export interface Stats {
@@ -42,6 +43,7 @@ export const api = {
   getStats: (year: number, month: number) => req(`/records/stats?year=${year}&month=${month}`),
   getSettings: () => req('/settings'),
   saveSettings: (s: Settings) => req('/settings', { method: 'PUT', body: JSON.stringify(s) }),
+  recalculateOvertime: () => req('/settings/recalculate', { method: 'POST' }),
   addRecord: (r: Omit<WorkRecord, 'id' | 'created_at' | 'updated_at'>) =>
     req('/records/add', { method: 'POST', body: JSON.stringify(r) }),
   updateRecord: (id: string, r: Partial<WorkRecord>) =>

@@ -138,61 +138,79 @@ class CalcTotalHoursTests(unittest.TestCase):
 
 
 class CalcOvertimeHoursTests(unittest.TestCase):
-    """加班 = max(0, totalHours - standardHours)"""
+    """新加班公式: 早班加成(9点前) + 晚间加班(overtime_start之后)"""
 
-    def test_no_overtime_exact_8h(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 8.0, 8.0, 1.0), 0.0)
+    def test_no_clock_out_returns_zero(self):
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), None, 1.0, "18:00"), 0.0)
 
-    def test_no_overtime_less_than_8h(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 7.0, 8.0, 1.0), 0.0)
+    def test_standard_day_no_overtime(self):
+        """9:00-18:00, overtime_start=18:00, pre=1 → 0h (过了9点无早班加成, 18点准时下班)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 18, 0), 1.0, "18:00"), 0.0)
 
-    def test_overtime_1h(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 9.0, 8.0, 1.0), 1.0)
+    def test_morning_bonus_only(self):
+        """8:00-17:00, ot_start=18:00, pre=1 → 1h (早班加成1h, 18点前下班无晚间加班)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 8, 0), datetime(2026, 5, 26, 17, 0), 1.0, "18:00"), 1.0)
 
-    def test_overtime_2h(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 10.0, 8.0, 1.0), 2.0)
+    def test_evening_overtime_only(self):
+        """9:00-20:00, ot_start=18:00, pre=1 → 2h (无早班加成, 2h晚间加班)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 20, 0), 1.0, "18:00"), 2.0)
 
-    def test_overtime_4_5h(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 12.5, 8.0, 1.0), 4.5)
+    def test_morning_plus_evening(self):
+        """8:00-22:00, ot_start=18:00, pre=1 → 5h (1h早班 + 4h晚间)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 8, 0), datetime(2026, 5, 26, 22, 0), 1.0, "18:00"), 5.0)
 
-    def test_overtime_zero_negative_total(self):
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 0, 8.0, 1.0), 0.0)
+    def test_overtime_start_19(self):
+        """9:00-20:00, ot_start=19:00, pre=1 → 1h (晚间从19点开始算)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 20, 0), 1.0, "19:00"), 1.0)
 
-    def test_non_standard_standard_hours(self):
-        """非标准工时：6h 标准"""
-        ci = datetime(2026, 5, 26, 9, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 8.0, 6.0, 1.0), 2.0)
+    def test_overtime_start_18_30(self):
+        """9:00-18:44, ot_start=18:30 → 0h (14min < 15min rounds down)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 18, 44), 1.0, "18:30"), 0.0)
 
-    def test_decimal_standard_hours(self):
-        """Decimal 类型的 standard_hours"""
+    def test_overtime_start_18_30_rounds_up(self):
+        """9:00-18:46, ot_start=18:30 → 0.5h (16min rounds up)"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 18, 46), 1.0, "18:30"), 0.5)
+
+    def test_exact_nine_no_morning_bonus(self):
+        """9:00整 → 无早班加成"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 26, 22, 0), 1.0, "18:00"), 4.0)
+
+    def test_8_59_gets_morning_bonus(self):
+        """8:59 → 有早班加成"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 8, 59), datetime(2026, 5, 26, 22, 0), 1.0, "18:00"), 5.0)
+
+    def test_pre_hours_zero(self):
+        """pre_hours=0 → 无早班加成"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 8, 0), datetime(2026, 5, 26, 20, 0), 0.0, "18:00"), 2.0)
+
+    def test_decimal_pre_hours(self):
+        """Decimal类型的pre_hours也能正常计算"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 8, 0), datetime(2026, 5, 26, 18, 0),
+            Decimal("1.5"), "18:00"), 1.5)
+
+    def test_cross_midnight(self):
+        """跨天：overtime_start锚定在clock_in日期"""
+        self.assertEqual(crud.calc_overtime_hours(
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 27, 2, 0), 1.0, "18:00"), 8.0)
+
+    def test_large_evening_overtime(self):
+        """通宵到第二天早上"""
         result = crud.calc_overtime_hours(
-            datetime(2026, 5, 25, 9, 0),
-            9.5,
-            Decimal("8.0"),
-            Decimal("1.0"),
-        )
-        self.assertEqual(result, 1.5)
-
-    def test_pre_hours_does_not_affect_result(self):
-        """当前实现：pre_hours 不影响加班计算"""
-        ci_early = datetime(2026, 5, 26, 8, 0)  # 8点前
-        ci_normal = datetime(2026, 5, 26, 9, 0)  # 9点
-        # 同样 9h 工时，8点上班和9点上班的加班一样
-        self.assertEqual(
-            crud.calc_overtime_hours(ci_early, 9.0, 8.0, 1.0),
-            crud.calc_overtime_hours(ci_normal, 9.0, 8.0, 1.0),
-        )
-
-    def test_clock_in_afternoon_no_effect(self):
-        """下午上班也不影响加班（但实际不会有这种情况）"""
-        ci = datetime(2026, 5, 26, 14, 0)
-        self.assertEqual(crud.calc_overtime_hours(ci, 10.0, 8.0, 1.0), 2.0)
+            datetime(2026, 5, 26, 9, 0), datetime(2026, 5, 27, 8, 0), 0.0, "18:00")
+        # 18:00 → 次日8:00 = 14h → 14*60/30*0.5 = 14.0h
+        self.assertEqual(result, 14.0)
 
 
 class MonthPrefixTests(unittest.TestCase):

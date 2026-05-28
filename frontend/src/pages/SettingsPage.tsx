@@ -3,7 +3,7 @@ import { api, type Settings, type WorkRecord } from '../api/client'
 import { exportCSV } from '../utils/export'
 
 export default function SettingsPage() {
-  const [settings, setSettings] = useState<Settings>({ standard_hours: 8, lunch_break_minutes: 60, pre_hours: 1 })
+  const [settings, setSettings] = useState<Settings>({ standard_hours: 8, lunch_break_minutes: 60, pre_hours: 1, overtime_start: '18:00' })
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -62,6 +62,37 @@ export default function SettingsPage() {
           />
           <span className="text-lg font-bold w-14 text-right">{settings.lunch_break_minutes}min</span>
         </div>
+      </div>
+
+      {/* 早班加成 */}
+      <div className="bg-gray-50 rounded-xl p-4">
+        <label className="text-sm text-gray-500">早班加成（9点前上班的固定加班时长）</label>
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="range"
+            min={0}
+            max={3}
+            step={0.5}
+            value={settings.pre_hours}
+            onChange={(e) => handleSave({ ...settings, pre_hours: +e.target.value })}
+            className="flex-1"
+          />
+          <span className="text-lg font-bold w-10 text-right">{settings.pre_hours}h</span>
+        </div>
+      </div>
+
+      {/* 晚间加班起始时间 */}
+      <div className="bg-gray-50 rounded-xl p-4">
+        <label className="text-sm text-gray-500">晚间加班起始时间</label>
+        <div className="flex items-center gap-2 mt-2">
+          <input
+            type="time"
+            value={settings.overtime_start}
+            onChange={(e) => handleSave({ ...settings, overtime_start: e.target.value })}
+            className="flex-1 border rounded px-3 py-2 text-lg"
+          />
+        </div>
+        <p className="text-xs text-gray-400 mt-1">该时间之后的工作时间计入加班</p>
       </div>
 
       {/* 导出 */}
