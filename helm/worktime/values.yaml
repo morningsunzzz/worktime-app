@@ -1,12 +1,16 @@
+imageRegistry: ghcr.io/morningsunzzz
+imagePullSecrets:
+  - name: ghcr-secret
+
 backend:
   replicaCount: 1
-  image: <registry>/worktime-backend:latest
+  image: ghcr.io/morningsunzzz/worktime-backend:20260527
   imagePullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8000
   env:
-    DATABASE_URL: postgresql://worktime:worktime123@<server-ip>:5432/worktime
+    DATABASE_URL: postgresql://worktime:worktime123@43.155.140.124:5432/worktime
   resources:
     requests:
       cpu: 100m
@@ -17,7 +21,7 @@ backend:
 
 frontend:
   replicaCount: 1
-  image: <registry>/worktime-frontend:latest
+  image: ghcr.io/morningsunzzz/worktime-frontend:20260527
   imagePullPolicy: IfNotPresent
   service:
     type: NodePort

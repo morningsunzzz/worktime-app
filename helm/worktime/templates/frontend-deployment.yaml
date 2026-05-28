@@ -12,6 +12,8 @@ spec:
       labels:
         app: {{ .Chart.Name }}-frontend
     spec:
+      imagePullSecrets:
+{{ toYaml .Values.imagePullSecrets | indent 8 }}
       containers:
         - name: frontend
           image: {{ .Values.frontend.image }}
